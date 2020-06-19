@@ -15,21 +15,30 @@ username = 'wenba'
 password = '2njkRQ3sUqW2Q8w2qoHvgVURQyjsK5hK'
 '''
 
+
+'''
 host = '192.168.2.44'
 port = '3306'
-database = 'fudao_quality'
+database = 'fudao_qatest_quality'
 username = 'wenba_quality_rw'
 password = 'ddc4bjiF2kx&45Ct2oCd'
+'''
 
 
 
-DB_URL = "mysql+pymysql://{username}:{password}@{host}:{port}/{database}?charset=utf8".format(username=username,password=password,host=host,port=port,database=database)
-
+host = '10.2.1.145'
+port = '3306'
+database = 'fudao_qatest_quality'
+username = 'quality'
+password = 'ntSmlzGNRJuYt9wzyMBE'
+DB_URL = "mysql://{username}:{password}@{host}:{port}/{database}?charset=utf8".format(username=username,password=password,host=host,port=port,database=database)
 SQLALCHEMY_DATABASE_URI = DB_URL
 
 SQLALCHEMY_COMMIT_ON_TEARDOWN = True
 SQLALCHEMY_TRACK_MODIFICATIONS = True
 SQLALCHEMY_ECHO= True
+
+
 
 
 
@@ -39,4 +48,6 @@ class KEY_TOKEN:
     # 过期时间
     EXPIRATION = 1800000
 
+
+SECRET_KEY = 'ni zhen mei'
 
