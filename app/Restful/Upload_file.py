@@ -682,9 +682,9 @@ class KillprocessView(Resource):
         }
 
         # 公钥
-        publickey = {'PublicKey': 'd+OjKD0rgaqxZWwaa9Nev4pQeAlhsiht4B9EgYDBGn5IbmvN'}
+        publickey = {'PublicKey': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
         # #私钥
-        private = 'd186ba62dad44a55ee8e4da1a873c51aee64737e'
+        private = 'xxxxxxxxxxxxxxxx'
         http_url = 'https://api.ucloud.cn/?'
         ulb_url = _verfy_ac(requestulb, publickey, private)
 
