@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <h1>文件上传示例</h1>
+    <form action="" enctype='multipart/form-data' method='POST'>
+        <input type="file" name="filename">
+        <input type="submit" value="上传">
+    </form>
+</body>
+
+
+{% for message in get_flashed_messages() %}
+<div class="alert alert-warning">
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    {{ message }}
+</div>
+{% endfor %}
+
+</html>
+
+

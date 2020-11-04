@@ -31,6 +31,8 @@ port = '3306'
 database = 'fudao_qatest_quality'
 username = 'quality'
 password = 'ntSmlzGNRJuYt9wzyMBE'
+
+
 DB_URL = "mysql://{username}:{password}@{host}:{port}/{database}?charset=utf8".format(username=username,password=password,host=host,port=port,database=database)
 SQLALCHEMY_DATABASE_URI = DB_URL
 
@@ -40,8 +42,8 @@ SQLALCHEMY_ECHO= True
 
 
 
-
-
+#mysql -uquality -pntSmlzGNRJuYt9wzyMBE  -h10.2.1.145
+#mysql -uwenba_quality_rw -pddc4bjiF2kx&45Ct2oCd -h192.168.2.44
 class KEY_TOKEN:
     #session 迷药
     SECRET_KEY = 'nihaomeinihaomei'
@@ -50,4 +52,8 @@ class KEY_TOKEN:
 
 
 SECRET_KEY = 'ni zhen mei'
+
+
+
+
 
