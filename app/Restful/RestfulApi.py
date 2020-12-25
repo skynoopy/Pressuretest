@@ -2,13 +2,13 @@ from flask import (flash, request, session, jsonify,Blueprint,g)
 from werkzeug.security import check_password_hash,generate_password_hash #验证密码hash
 from app.db_mysql import User,ReportLog
 from app.exts import db
-import glob, os,requests,re
+import glob, os,requests,ast
 import paramiko, subprocess,threading,time  #远程执行命令
 from apscheduler.schedulers.background import BackgroundScheduler #定时任务
-
+import datetime,re
 from flask_restful import Resource,Api  #restful api
 from .Httpauth  import authtoken ,serializer,Interface_authority #Interface_authority初始化验证接口权限函数
-from app.aps_scheduler import Url01,Url02,schedulerdate,except_log
+from app.aps_scheduler import schedulerdate,Url01,Url02,except_log   #定时任务
 
 
 
@@ -18,8 +18,8 @@ api = Api(RestfulApi) #初始化restfulapi
 
 
 class test(Resource):
-    decorators = [ authtoken.login_required ] #token 认证
-    method_decorators = [Interface_authority] #权限认证
+    decorators = [ authtoken.login_required ]
+    method_decorators = [Interface_authority]
     # @Interface_authority
 
     def post(self):
@@ -70,7 +70,7 @@ class RegisterView(Resource):
 
             j_data = {
                 "msg": error,
-                "code": 200
+                "statusCode": 200
             }
             return jsonify(j_data)
             # return redirect(url_for('auth.login'))
@@ -78,11 +78,10 @@ class RegisterView(Resource):
 
         j_data = {
             "msg": error,
-            "code": 400
+            "statusCode": 400
         }
         return jsonify(j_data)
 api.add_resource(RegisterView,'/Register')
-
 
 
 
@@ -100,7 +99,7 @@ class LoginView(Resource):
 
         #查询注册用户存入变量备用
         user = User.query.filter_by(username=username).first()
-
+        role = user.role
 
         if user is None:
             error = '用户名不正确请重新输入.'
@@ -144,7 +143,7 @@ class LoginView(Resource):
                "statusCode": 200,
                "data" : {
                    "uid": uid,
-
+                   "role": role,
                    # "token": get_token().decode("ascii"),
                    "token": token,
                }
@@ -159,11 +158,12 @@ class LoginView(Resource):
 api.add_resource(LoginView,'/Login')
 
 
+
+
 # 接token 返回用户权限
 class GetPermission(Resource):
     def get(self):
         return '接token返回用户权限!'
-
     def post(self):
         data = request.get_json()
         token = data['token']
@@ -173,13 +173,13 @@ class GetPermission(Resource):
             j_data = {
                 "data":{"roles" : roles},
                 "msg": msg,
-                "code": 200,
+                "statusCode": 200,
             }
         else:
             msg = "获取失败"
             j_data = {
                 "msg": msg,
-                "code": 404,
+                "statusCode": 404,
             }
 
         return jsonify(j_data)
@@ -199,37 +199,28 @@ class ScriptGenerationView(Resource):
 
     def post(self):
         data = request.get_json(force=True)
-        username = data['userName']
         type = data['type']
+        username = data['userName']
         hostip = data["hostip"]
         hostpath = data["hostpath"]
         parameter = data["parameter"]
         parameter = str(parameter)
         parameter = eval(parameter)
         parameter = str(parameter)
-        excelog = data["excete_log"]
-        # print(type,hostip,hostpath,parameter)
+        #excelog = data["excete_log"]
+        print(type,hostip,hostpath,parameter)
 
-        kk  = session.get('username')
-        print(kk)
 
         def type_post():
             # 本机测试脚本路径
-            file = glob.glob('/Users/gz0101000646/Downloads/qa-post-test.py')
+            file = glob.glob('/data/soft/Quality_Platform/scripts/template/qa-post-test.py')
             # 定义自动生成脚本函数
             for one_polling in file:
-                username = session.get('username')
-                username = str(username)
-                username = username.split('@')[0] #去除邮箱后缀
-
-
-                if '.' in username:
-                    username = username.replace('.','') #匹配有.的用户名
-                print(username)
                 date = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
-                new_file = "/Users/gz0101000646/Downloads/{username}-qa-test-{date}.py".format(date=date,username=username)
+                new_file = "/data/soft/Quality_Platform/scripts/singlescripts/{username}-qa-test-{date}.py".format(date=date,username=username)
                 filename = '{username}-qa-test-{date}.py'.format(date=date,username=username)
                 put_file = "/home/wenba/xz/automation/snail/scripts/" + "{username}-qa-test-{date}.py".format(date=date,username=username)
+                print('脚本生成',new_file)
 
                 f1 = open(new_file, 'w+')
                 f = open(one_polling, 'r+')
@@ -251,7 +242,6 @@ class ScriptGenerationView(Resource):
                         # 上传生成脚本
                     def ssh1(ip,username,password,file):
                         try:
-
                             transport = paramiko.Transport((ip, 9922))
                             transport.connect(username=username, password=password)
                             sftp = paramiko.SFTPClient.from_transport(transport)
@@ -269,22 +259,24 @@ class ScriptGenerationView(Resource):
                                     "statusCode": 200
                                 }
                                 return jsonify(j_data)
-                    ssh1('10.10.5.169','root','fudao@123456',new_file)
-
+                    ssh1('10.55.142.248','root','fudao@123456',new_file)
 
                     #操作成功日志存库
                     excelog['operation_result'] = 1
                     except_log().putlog(excelog)
                     return filename
 
+
+
                 except:
                     print('脚本执行失败，请检查.')
+
                     # 操作失败日志存库
                     excelog['operation_result'] = 2
                     except_log().putlog(excelog)
-
                     error = '脚本生成失败,请检查!'
                     return '500'
+
 
         if type == 'POST' or 'post':  #判断请求类型执行对应的函数
            print(type)
@@ -334,6 +326,7 @@ api.add_resource(ScriptGenerationView, '/ScriptGeneration')
 
 
 
+
 #执行命令接口
 class ImplementView(Resource):
     decorators = [ authtoken.login_required ]
@@ -354,7 +347,9 @@ class ImplementView(Resource):
             Filename) + ' -c' + ' ' + str(Concurrent) + ' ' + str(Dx) + ' ' + str(Xz) + ' -i' + ' ' + str(Ip)
         print(command)
 
-        user_file_log = '/Users/gz0101000646/Downloads/{filename}.log'.format(filename=Filename)
+        user_file_log = '/data/soft/Quality_Platform/logs/{filename}.log'.format(filename=Filename)
+
+
         #远程执行压测命令
         def ssh2(ip, username, password, cmd):
             try:
@@ -390,8 +385,9 @@ class ImplementView(Resource):
                 }
                 return jsonify(j_data)
 
+
         def ssh():
-            ssh2('10.10.5.169', 'root', 'fudao@123456', command)
+            ssh2('10.55.142.248', 'root', 'fudao@123456', command)
 
         scheduler = BackgroundScheduler()
         scheduler.add_job(ssh, 'date')
@@ -412,7 +408,10 @@ class ImplementView(Resource):
 
         time.sleep(3)
         return jsonify(j_data)
+
 api.add_resource(ImplementView, '/Implement')
+
+
 
 
 
@@ -420,18 +419,18 @@ api.add_resource(ImplementView, '/Implement')
 #批量执行命令
 
 class BatchExecutionView(Resource):
-        # decorators = [authtoken.login_required]
+        decorators = [authtoken.login_required]
         method_decorators = [Interface_authority]
         def get(self):
             print('批量执行命令接口')
 
         def post(self):
             #获取前端数据对象组
+            print('1')
             data = request.get_json(force=True)
             Mail = data['Mail']
             data = data['data']
-
-            def get_parameter(): #获取批量个数
+            def get_parameter():
                 try:
                     wc = int(len(data))
                     command_list = []
@@ -454,6 +453,7 @@ class BatchExecutionView(Resource):
                 return jsonify(j_data)
 
 
+
             #paramiko远程执行
             def ssh2(ip, username, password, cmd,filename):
                 try:
@@ -464,17 +464,16 @@ class BatchExecutionView(Resource):
                     transport.connect(username=username, password=password)
                     ssh = paramiko.SSHClient()
                     ssh._transport = transport
-
                     stdin, stdout, stderr = ssh.exec_command(cmd, get_pty=True)  # 支持多条命令拼接
-                    print('压测命令执行了')
+                    print('执行了')
 
                     #日志存放骚操作
-                    batch_log = '/Users/gz0101000646/{Filename}.log'.format(Filename=filename)
+                    batch_log = '/data/soft/Quality_Platform/logs/{Filename}.log'.format(Filename=filename)
                     Results_log = open(batch_log, 'w+', encoding='utf-8')
-
                     while True:
                         line = stdout.readline()
-                        print(line, file=open(batch_log, 'w+'))
+                        #line = line.replace('\x00','')
+                        print(line, file=open(batch_log, 'w+', encoding='utf-8'))
                         print(line)
                         Results_log.write(line)
 
@@ -482,71 +481,71 @@ class BatchExecutionView(Resource):
                             Results_log.close()
                             break
                     # 操作成功并失败上传日志存库
-                    operation_content = treename
+                    operation_content = '执行脚本完毕:' + treename
                     operation_result = 1
                     except_log().putlog(tree_id, uid, operation_content, operation_result, 2)
                     print('远程命令执行完毕')
+              
+
                 except  Exception as e:
                     #操作失败并失败上传日志存库
-                    operation_content = treename
+                    operation_content = '执行脚本失败:' + treename
                     operation_result = 2
                     except_log().putlog(tree_id, uid, operation_content, operation_result, 2)
                     print('远程命令执行失败.', e)
                     error = '500'
                     print('远程命令执行失败')
 
+
                 transport.close()
+
+            #多线程调取执行
             def ssh():
-                threadlist = [] #存放队列命令列表
-                for cmd in get_parameter():
-                    if cmd:
-                        filename = cmd.split()[4]
-                        threadcmd = threading.Thread(target=ssh2,args=('192.168.2.91','root','fudao@123456',cmd,filename))
-                        threadlist.append(threadcmd)
-                    print('队列命令list',threadlist)
+                try:
+                    command_list = get_parameter()
+                    print(len(command_list))
+                    print(command_list)
 
-                    for t in threadlist: #将列表中命令循环加入队列执行
+                    threadlist = []
+                    for cmd in command_list:
+                        if cmd:
+                            filename = cmd.split()[4]
+                            threadcmd = threading.Thread(target=ssh2,args=('10.55.142.248','root','fudao@123456',cmd,filename))
+                            threadlist.append(threadcmd)
 
+
+                    print(threadlist)
+                    for t in threadlist:
                         t.setDaemon(True)
                         t.start()
                         time.sleep(2)
                     t.join()                      #阻赛主线程，等待所有子线程结束才终止主线程
                     print('多线程队列全部执行完毕')
-            # k = ssh()
+                    global  error
+                    error = 200
+
+                except Exception as e:
+                    print(e)
+                    error = 500
+                    j_data = {
+                        'msg': '批量脚本执行失败.',
+                        'statusCode': 500
+                    }
+                    return jsonify(j_data)
+
 
             scheduler = BackgroundScheduler()
             scheduler.add_job(ssh, 'date')
-            status = scheduler.start()
-            print('status',status)
+            scheduler.start()
             print('批量任务加入成功.')
-            j_data = {'msg': '批量脚本执行成功.','statusCode': 200,}
+
+            j_data = {
+                'msg': '批量脚本执行成功.',
+                'statusCode': 200,
+
+            }
             time.sleep(3)
             return jsonify(j_data)
-
-
-
-
-                # except Exception as e:
-                #     error = 'error'
-                #     return error
-
-            # if status == 'ok':
-            #     j_data = {'msg': '批量脚本执行成功.','statusCode': 200,}
-            #     time.sleep(3)
-            #     return jsonify(j_data)
-            # if status == 'error':
-            #     j_data = {'msg': '批量脚本执行失败.', 'statusCode': 200, }
-            #     time.sleep(3)
-            #     return jsonify(j_data)
-
-            # scheduler = BackgroundScheduler()
-            # scheduler.add_job(ssh, 'date')
-            # status = scheduler.start()
-            # print('status',status)
-            # print('批量任务加入成功.')
-
-
-
 
 
 api.add_resource(BatchExecutionView,'/BatchExecution')
@@ -569,32 +568,22 @@ class BatchRealtimeLogView(Resource):
               return scriptsname_list
           get_scriptname()
 
-
           def get_scriptlog(scriptname): #获取脚本对应的日志数据
-              batch_log = '/Users/gz0101000646/Downloads/{scriptname}.log'.format(scriptname=scriptname)
+              batch_log = '/data/soft/Quality_Platform/logs/{scriptname}.log'.format(scriptname=scriptname)
               print(batch_log)
               f = open(batch_log)
-
-              # lines = f.readlines()
-              # lines = f.read().replace('\00x','').strip('\u001b').strip()
               lines = f.read().strip().replace('\00x','').strip('\u001b')
-              print('1line',lines)
-
-
-
-
-              # lines = [line.strip().strip('\u001b').replace('\00x','') for line in lines]  # 列表生成试替换换行和其他特殊符号
-              # lines = list(filter(None,lines))
-              # lines = str_lines.lstrip('[').rstrip(']').strip('\'A')
-              # lines = str_lines.lstrip('[').rstrip(']')
-              # lines = lines[0]
+              print(lines)
+              #lines = f.readlines()
+              #lines = [line.strip().strip('\u001b').replace('[','') for line in lines]  # 列表生成试替换换行和其他特殊符号
+              #lines = list(filter(None,lines))
+              #str_lines = str(lines)
+              #lines = str_lines.lstrip('[').rstrip(']').strip('\'A')
               t_lines = lines.startswith('总') #判断开头是否为指定字符
-
-              print('2line',lines,t_lines)
+              print(lines,t_lines)
               if t_lines:  #开头为指定字符正常返回实时日志，如果开头不是指定字符则返回判断字符
                   lines =  { "logname":str(scriptname), "logconet":str(lines)}
                   return  lines
-
 
           def result_log(): #将循环结果放入列表并返回前端
               scriptsname = get_scriptname()
@@ -606,9 +595,7 @@ class BatchRealtimeLogView(Resource):
               print(result_list)
 
 
-
               if result_list:
-                  time.sleep(3)
                   j_data = {
                       'msg': '实时数据返回',
                       'statusCode': 200,
@@ -634,8 +621,6 @@ class BatchRealtimeLogView(Resource):
 
 
 
-
-
 api.add_resource(BatchRealtimeLogView, '/BatchRealtimeLog')
 
 
@@ -653,23 +638,21 @@ class BatchLogView(Resource):
                   scriptname.append(i)
               print('scriptname',scriptname)
               return scriptname
-          # get_scriptname()
+          #get_scriptname()
 
           def get_scriptlog(scriptname): #拿脚本名称查询日志结果
-              batch_log = '/Users/gz0101000646/Downloads/{scriptname}.log'.format(scriptname=scriptname)
+              batch_log = '/data/soft/Quality_Platform/logs/{scriptname}.log'.format(scriptname=scriptname)
               print(batch_log)
               f = open(batch_log)
               lines = f.readlines()
               lines = [line.strip().strip('\u001b') for line in lines]  # 列表生成试替换换行和其他特殊符号
               lines = list(filter(None, lines)) #去空
               lines = lines[-8:]
-
-
-             # reportlog = ReportLog(tree_id=9, tree_name='updatetree', report_name='relosg',report_info=str(lines),uid=3)
-             # db.session.add(reportlog)
-              print('jj')
+             
+              #reportlog = ReportLog(tree_id=9, tree_name='updatetree', report_name='relosg',report_info=str(lines),uid=3)
+              #db.session.add(reportlog)
               #db.session.commit()
-
+              
               print(lines)
               return lines
 
@@ -677,7 +660,7 @@ class BatchLogView(Resource):
 
           scriptname = get_scriptname() #获取脚本名称
           print(scriptname)
-
+          
           data_list = []
           for sname in  scriptname: #循环脚本名称去获取 日志结果
               lines = get_scriptlog(sname)
@@ -685,13 +668,10 @@ class BatchLogView(Resource):
                   'logname': sname,
                   'resultlog': lines
               }
-
               print(data)
               data_list.append(data)
           j_data = {'msg':'请求日记成功','statusCode':200, 'data': data_list }
           return jsonify(j_data)
-
-
 api.add_resource(BatchLogView,'/BatchLog')
 
 #实时日志返回接口
@@ -702,28 +682,26 @@ class RealtimeLog(Resource):
             scriptsname_list = []
             data = request.get_json(force=True)
             data = data['data']
-
-            print(data)
+            # print(data)
             for i in data:
                 scriptname = i['scriptname']
-                # print(scriptname)
+                # print(scritname)
                 scriptsname_list.append(scriptname)
             return scriptsname_list
 
         get_scriptname()
 
         def get_scriptlog(scriptname):  # 获取脚本对应的日志数据
-            batch_log = '/Users/gz0101000646/Downloads/{scriptname}.log'.format(scriptname=scriptname)
-            # print(batch_log)
+            batch_log = '/data/soft/Quality_Platform/logs/{scriptname}.log'.format(scriptname=scriptname)
+            print(batch_log)
             f = open(batch_log)
             lines = f.readlines()
             lines = [line.strip().strip('\u001b').replace('[', '') for line in lines]  # 列表生成试替换换行和其他特殊符号
             lines = list(filter(None, lines))
             str_lines = str(lines)
-            lines =  str_lines.lstrip('[').rstrip(']').strip('\'A')
+            lines = str_lines.lstrip('[').rstrip(']').strip('\'A')
             t_lines = lines.startswith('总')  # 判断开头是否为指定字符
-
-            # print(lines, t_lines)
+            print(lines, t_lines)
             if t_lines:  # 开头为指定字符正常返回实时日志，如果开头不是指定字符则返回判断字符
                 lines = {"logname": str(scriptname), "logconet": str(lines)}
                 return lines
@@ -785,45 +763,33 @@ class ScheduledTasksView(Resource):
             Mail = request_data['Mail']
             count = len(data)
             command_list = []
-
-
-
             for loop in range(count):
                 parameter = data[loop]  #data[0]
                 print('dd',parameter)
-                global Filename
                 Filename = parameter['Filename']
                 Concurrent = parameter['Concurrent']
                 Dx = parameter['Dx']
                 Xz = parameter['Xz']
                 Ip = parameter['Ip']
                 Treename = parameter['Treename']
-
-                command1 = 'cd /home/wenba/xz/automation/snail;python run.py  -f  {Filename}  -c  {Concurrent}  {Dx} {Xz}  -i  {Ip}  -u {Mail}'\
-                               .format(Filename=str(Filename),Concurrent=str(Concurrent),Dx=str(Dx),Xz=str(Xz),Ip=str(Ip),Mail=str(Mail))
-                command2 = 'python /data/soft/Qa_quality/scripts/ulb_kill.py  {Ip} {Filename}:{Treename}'.format(Ip=str(Ip),Filename=str(Filename),Treename=str(Treename))
-                command = command1 + ':' + command2
-                # command = 'cd /home/wenba/xz/automation/snail' + ';' + 'python run.py' + '  -f' + ' ' + str(
-                #     Filename) + ' -c' + ' ' + str(Concurrent) + ' ' + str(Dx) + ' ' + str(Xz) + ' -i' + ' ' + str(Ip) +  ' -u' + ' ' + str(Mail) \
-                # + ';' + 'python /data/soft/Qa_quality/scripts/ulb_kill.py ' + str(Ip) + ' ' + str(Filename) + ':' + str(Treename)
-
-
+                command = 'cd /home/wenba/xz/automation/snail' + ';' + 'python run.py' + '  -f' + ' ' + str(
+                    Filename) + ' -c' + ' ' + str(Concurrent) + ' ' + str(Dx) + ' ' + str(Xz) + ' -i' + ' ' + str(Ip) + ' -u' + ' ' + str(Mail) + ':' + str(Treename)
                 command_list.append(command)  #生成的命令存入列表
-            print('kk',command_list)
+            print(command_list)
             return (command_list)
 
 
-        def ssh2(ip, username, password, cmd,filename):
 
+        def ssh2(ip, username, password, cmd,filename):
             try:
                 transport = paramiko.Transport((ip, 9922))
                 transport.connect(username=username, password=password)
                 ssh = paramiko.SSHClient()
                 ssh._transport = transport
-                stdin, stdout, stderr = ssh.exec_command(cmd, get_pty=True,timeout=30)  # 支持多条命令拼接
-                print(cmd,'执行了')
+                stdin, stdout, stderr = ssh.exec_command(cmd, get_pty=True)  # 支持多条命令拼接
+                print('执行了')
 
-                scheduled_log = '/Users/gz0101000646/Downloads/scheduled_{filename}.log'.format(filename=filename)
+                scheduled_log = '/mnt/fulllinklogs/scheduledlogs/scheduled_{filename}.log'.format(filename=filename)
                 Results_log = open(scheduled_log, 'w+', encoding='utf-8')
 
                 while True:
@@ -838,48 +804,39 @@ class ScheduledTasksView(Resource):
 
             except  Exception as e:
                 print('命令执行失败.',e)
-                return ('error')
             transport.close()
 
-        # def ssh(cmd):
-        #     # ssh2('10.10.5.169', 'root', 'fudao@123456', cmd, cmd[4])
-        #     ssh2(print(cmd,cmd[4]))
+        def ssh(cmd):
+            ssh2('10.55.142.248', 'root', 'fudao@123456', cmd, cmd[4])
 
-        def ssh(cmdd):
-            ssh2('192.168.2.91', 'root', 'fudao@123456', cmdd,Filename)
+        # def ssh():
+        #     ssh2('10.55.142.248', 'root', 'fudao@123456', command)
+        #
+        # def myjob():
+        #     print('myjob:', time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
 
-        def myjob(myjob):
-            print('myjob:', time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),myjob)
+        #定义日期类job
 
-
-        # scheduler = BackgroundScheduler()
-
-        # if schedulerdate.state == 0: schedulerdate.start()
-
-
-
-
+        #if schedulerdate.state == 0: schedulerdate.start()
 
         class Timing_date: #date 类型的定时任务
 
 
             def add_job_date(self,Datetime,job_id,cmd): #新增job
                     schedulerdate.add_job(ssh, 'date', run_date=Datetime, id=job_id,args=[cmd])
-                    # schedulerdate.add_job(myjob, 'date', run_date=Datetime, id=job_id,args=[cmd])
-
                     get_jobs = schedulerdate.get_jobs()
-                    print('addgetjobs',get_jobs)
-
+                    print(get_jobs)
 
             def add_job_interval(self,Intervaltime,job_id,cmd):
                 schedulerdate.add_job(ssh, 'interval', seconds=Intervaltime, id=job_id,args=[cmd])
                 get_jobs = schedulerdate.get_jobs()
                 print(get_jobs)
 
+
             def get_jobs(self): #获取job列表
                 jobs = schedulerdate.get_jobs()
+                print('get_jobs',jobs)
                 return (jobs)
-
 
             def remove_job(self,jobid): # 删除指定job
                 schedulerdate.remove_job(jobid)
@@ -887,59 +844,32 @@ class ScheduledTasksView(Resource):
             def remove_all_jobs(self): #删除所有job
                 schedulerdate.remove_all_jobs()
 
-
-
-        # def kk():
-        #     f = open('/Users/gz0101000646/Downloads/x.txt','w')
-        #     f.write('testkb')
-        #     f.close()
-
-
-
         if Timingtype == 'add_date':
             data = request_data['data']
             Datetime = request_data['Datetime']  # date类型传入的时间参数值
-            s = schedulerdate.state
-            print(s)
-            # if s ==  0: schedulerdate.start()
-
             Username = request_data['Username']
 
             Job_id = []
             for cmd in command_aggre(): #循环命令执行添加job过程
-
-
-                Treename = cmd.split(':')[2]
-                print('treename',Treename)
+                Treename = cmd.split(':')[1]
                 command = str(cmd.split(':')[0])
-                print('kkzhs', command)
-                ulbcommand = str(cmd.split(':')[1])
-                print('ulbcmd',ulbcommand)
-                job_id_time_001 = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(time.time())) #已时间为jobid
-                job_cmd1 = Timing_date().add_job_date(Datetime,job_id_time_001,command) #添加队列
-                time.sleep(3)
-                job_id_time_002 = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(time.time()))
-                job_cmd2 = Timing_date().add_job_date(Datetime,job_id_time_002,ulbcommand)
-                print('k2')
-
-                Job_id.append(job_id_time_001)
+                job_id_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(time.time()))
+                job_cmd = Timing_date().add_job_date(Datetime,job_id_time,command)
+                print(job_id_time)
+                Job_id.append(job_id_time)
                 data = {
                           "treename":Treename,
                           "pointtime":Datetime,
                           "cycletype":1,
-                          "taskid":job_id_time_001,
+                          "taskid":job_id_time,
                           "tasktype":"date",
                           "username":Username
                         }
                 r = requests.post(Url01,json=data)
                 print('jj',r.text)
                 time.sleep(3)
-                s = schedulerdate.state
-                print('start' ,s)
-                if s  == 0: schedulerdate.start()
-
             print('date 类型计划任务')
-            j_date = {'msg':'date类任务已添加','statusCode':200}
+            j_date = {'msg':'date类任务已添加','statusCode':200, 'Jobid':Job_id}
             return jsonify(j_date)
 
 
@@ -947,18 +877,15 @@ class ScheduledTasksView(Resource):
             data = request_data['data']
             Intervaltime = int(request_data['Intervaltime'])  # interval 类型传入的时间参数值, 当前支持s
             Username = request_data['Username']
-
             Job_id = []
             for cmd in command_aggre(): #循环命令执行添加job过程
                 print('com',cmd)
-                Treename = cmd.split(':')[2]
-                print('treename',Treename)
+                Treename = cmd.split(':')[1]
                 command = str(cmd.split(':')[0])
-                print('mingling',command)
                 job_id_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(time.time()))
                 job_cmd = Timing_date().add_job_interval(Intervaltime, job_id_time,command)
                 Job_id.append(job_id_time)
-
+                
                 data = {
                           "treename":Treename,
                           "pointtime":Intervaltime,
@@ -967,10 +894,8 @@ class ScheduledTasksView(Resource):
                           "tasktype":"Interval",
                           "username":Username
                         }
-
                 r = requests.post(Url01,json=data)
                 print('jj',r.text)
-
                 time.sleep(3)
 
             print('interval类型计划任务')
@@ -978,7 +903,7 @@ class ScheduledTasksView(Resource):
             return jsonify(j_date)
 
         elif Timingtype == 'remove_job':
-            Jobid = request_data['Jobid']
+            Jobid= request_data['Jobid']
             try:
                 Timing_date().remove_job(Jobid)
                 j_date = {'msg': 'job已删除', 'statusCode': 200}
@@ -987,25 +912,18 @@ class ScheduledTasksView(Resource):
                 j_date =  {'msg': '删除失败', 'statusCode': 200, 'error':e }
                 return jsonify(j_date)
 
-
         elif Timingtype == 'remove_all':
-
             Timing_date().remove_all_jobs()
-
             j_date = {'msg': 'job已清空', 'statusCode': 200}
             return jsonify(j_date)
         elif Timingtype == 'get_jobs':
-            s = schedulerdate.state
-            print(s)
-
             get_jobs = Timing_date().get_jobs()
             len_get_jobs = len(get_jobs)
-            print(type(get_jobs),'type')
-            if len_get_jobs == 0:
+            if len_get_jobs == 0: #如果对列为空则返回状态给前端
                 print('JOB为空')
                 j_data = {'msg': 'job队列为空', 'statusCode': 200,}
                 return jsonify(j_data)
-
+                
             strgetjobs = str(get_jobs).strip('\"[').strip(']').replace('\'[','').replace(']\'','').split(',')
             all_jobsid = []
             for i in strgetjobs:
@@ -1014,60 +932,23 @@ class ScheduledTasksView(Resource):
                 print(i)
                 all_jobsid.append(i)
             print(all_jobsid)
+           # all_jobsid = ['2020-09-16-14-55-54','2020-09-16-14-55-51']
 
             data = {
                 "taskidlist": all_jobsid
             }
 
-            print(data)
             r = requests.post(Url02, json=data)
-            rdate = r.json()
+            rdate = r.json()["date"]
             print('jk', rdate)
 
 
             j_date = {'msg': '返回任务id', 'statusCode': 200,'jobsid':rdate}
             return jsonify(j_date)
         else:
-            print('参数异常')
-
-
-            # print('get',type(get_jobs))
-
-            # lenstatus = len(get_jobs)
-            # if lenstatus >= 1:
-            #     for i in range(lenstatus):
-            #         Nextexecutiontime = str(get_jobs[i]).split('[')[1].split('C')[0]
-            #         executionstatus = str(get_jobs[i]).split('[')[1].split(',')[1].strip().strip(')')
-            #         print(Nextexecutiontime,executionstatus)
-
-
-
-
-
-
-
-
-
-                # for id in get_jobs:
-                    # nexttime = str(id).split('[')[1].split('C')[0]
-                    # currentstatus = str(id).split(',')[1].strip(')').strip()
-
-                    # print(nexttime,currentstatus)
-            # else:
-            #     print('none data')
-
-
-
-
-
-
-
-
-
-
-
-
-
+            j_date = {'msg': '参数异常', 'statusCode': 200}
+            return jsonify(j_date)
+            
 
 
 api.add_resource(ScheduledTasksView,'/ScheduledTasks')
@@ -1075,23 +956,25 @@ api.add_resource(ScheduledTasksView,'/ScheduledTasks')
 #压测机监控接口
 class MonitorView(Resource):
     def get(self):
-        monitor = subprocess.Popen(['curl', '-s', 'http://10.10.5.169:5003/monitor'], stdout=subprocess.PIPE,
+        monitor = subprocess.Popen(['curl', '-s', 'http://10.55.142.248:5003/monitor'], stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT)
+
+        # monitor = subprocess.Popen(['curl', '-s', 'http://0.0.0.0:5003/monitor'], stdout=subprocess.PIPE,
+        #                            stderr=subprocess.STDOUT)
         out = monitor.stdout.readlines()
-
         outlist = []
-        [outlist.append(k) for k in out]
-        cpu = str(outlist[2]).strip('b').split()[4].split('}')[0]
-        mem = str(outlist[2]).strip('b').split()[2].strip(',')
-
-        print(cpu,mem)
+        for k in out:
+            k = k.decode("utf-8").strip(' ').strip('"').strip('\n", ').strip('\\n')
+            outlist.append(k)
+        outlist = outlist[2:-2]
+        abc = []
+        for x in outlist:
+            x = ast.literal_eval(x)
+            abc.append(x)
         j_data = {
             'msg': '性能数据获取成功',
-            'statusCode': 200,
-            'data':{
-                'cpu': cpu,
-                'mem': mem
-            }
+            'code': 200,
+            'data': abc
         }
         return (j_data)
 
@@ -1112,7 +995,6 @@ class KillProcessView(Resource):
         cmd = '/usr/bin/python3.7 /data/soft/Qa_quality/scripts/killprocess.py {processname}'.format(processname=processname)
         print(cmd)
 
-
         def ssh(ip, username, password, cmd):
             try:
                 transport = paramiko.Transport((ip, 9922))
@@ -1127,7 +1009,7 @@ class KillProcessView(Resource):
             except Exception as e:
                 print(e)
 
-        ssh('10.10.5.169', 'root', 'fudao@123456', cmd)
+        ssh('10.55.142.248', 'root', 'fudao@123456', cmd)
 api.add_resource(KillProcessView, '/KillProcess')
 
 
@@ -1135,11 +1017,7 @@ api.add_resource(KillProcessView, '/KillProcess')
 #终止所有压测脚本接口
 
 class KillAllProcessView(Resource):
-    def post(self):
-        data = request.get_json(force=True)
-        username = data.get('username')
-        print(data,type(data),username)
-
+    def get(self):
         cmd = '/usr/bin/python3.7 /data/soft/Qa_quality/scripts/killallprocess.py'
         print(cmd)
 
@@ -1156,17 +1034,19 @@ class KillAllProcessView(Resource):
                 print(line)
             except Exception as e:
                 print(e)
-        ssh('10.10.5.169', 'root', 'fudao@123456', cmd)
+        ssh('10.55.142.248', 'root', 'fudao@123456', cmd)
 
-        # 操作成功并失败上传日志存库
+        #操作日志存放
         date = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
         operation_content = username + '/终止所有进程/' + date
         print(operation_content)
-        except_log().putlog(0, 0, operation_content, 0, 2)
-
+        except_log().putlog(1, 1, operation_content, 1, 2)
+        
         j_data = {
             'msg':'终止所有压测脚本成功',
             'statusCode': 200
         }
         return jsonify(j_data)
+
 api.add_resource(KillAllProcessView, '/KillAllProcess')
+

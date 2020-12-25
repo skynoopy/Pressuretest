@@ -1,11 +1,11 @@
 from werkzeug.security import check_password_hash  #验证密码hash
-from flask import (g, jsonify, make_response,request,session)
+from flask import (g, jsonify, make_response,request)
 from app.db_mysql import User
 from flask_httpauth import HTTPBasicAuth,HTTPTokenAuth
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from configs import SECRET_KEY
 from functools import wraps
-import requests,json,os,time
+import requests,json
 
 #密码验证url登录
 auth = HTTPBasicAuth() #认证初始化
@@ -24,7 +24,6 @@ def unauthorized():
 
 #token认证
 authtoken = HTTPTokenAuth(scheme='xbj')
-
 serializer = Serializer(SECRET_KEY,expires_in=60000)
 
 # 回调函数，对 token 进行验证
@@ -82,6 +81,8 @@ def Interface_authority(func):
                           'code': 200
                       }
                       return jsonify(j_data)
+
           return wrapper
       except Exception as e:
           print(e)
+

@@ -1,25 +1,26 @@
 # coding:utf-8
 
 class RET:
-    OK                  = "200"
-    ERROR_404           = '404'
-    DBERR               = "4001"
-    NODATA              = "4002"
-    DATAEXIST           = "4003"
-    DATAERR             = "4004"
-    SESSIONERR          = "4101"
-    LOGINERR            = "4102"
-    PARAMERR            = "4103"
-    USERERR             = "4104"
-    ROLEERR             = "4105"
-    PWDERR              = "4106"
-    REQERR              = "4201"
-    IPERR               = "4202"
-    THIRDERR            = "4301"
-    IOERR               = "4302"
-    SERVERERR           = "4500"
-    UNKOWNERR           = "4501"
-
+    OK                  = 200
+    ERROR_404           = 404
+    DBERR               = 4001
+    NODATA              = 4002
+    DATAEXIST           = 4003
+    DATAERR             = 4004
+    SESSIONERR          = 4101
+    LOGINERR            = 4102
+    PARAMERR            = 4103
+    USERERR             = 4104
+    ROLEERR             = 4105
+    PWDERR              = 4106
+    REQERR              = 4201
+    IPERR               = 4202
+    THIRDERR            = 4301
+    IOERR               = 4302
+    SERVERERR           = 4500
+    UNKOWNERR           = 4501
+    TIMEERROR           = 4502
+    FILENOTFOUNDERR     = 4503
 error_map = {
     RET.OK                    : u"成功",
     RET.DBERR                 : u"数据库查询错误",
@@ -38,4 +39,5 @@ error_map = {
     RET.IOERR                 : u"文件读写错误",
     RET.SERVERERR             : u"内部错误",
     RET.UNKOWNERR             : u"未知错误",
+    RET.FILENOTFOUNDERR       : u"文件没有找到"
 }
