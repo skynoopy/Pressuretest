@@ -31,7 +31,7 @@ Jinja2==2.11.2
 kombu==4.6.11
 MarkupSafe==1.1.1
 mysqlclient==1.4.6
-paramiko==2.7.1
+paramiko==2.10.1
 pycparser==2.20
 pycrypto==2.6.1
 PyMySQL==0.9.3
